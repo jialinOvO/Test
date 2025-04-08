@@ -1,0 +1,59 @@
+# ✅ 金融关键词日报生成器（修复空文件问题）
+# - 每天自动抓取关键词相关新闻
+# - 存 Excel（非空再保存）
+# - 可选发邮件
+
+from newsapi import NewsApiClient
+import pandas as pd
+import datetime
+import os
+import sys
+
+# ==== 配置区 ====
+API_KEY = '010851a82a5242c4ac677740a9d28f27'  # TODO: 替换成你的 API Key
+KEYWORDS = ['inflation', 'gold', 'interest rate', 'fed', 'stock market']
+SAVE_PATH = './output'
+SEND_EMAIL = False  # 如果你想加发邮件功能，改成 True
+
+# ==== 初始化 ====
+api = NewsApiClient(api_key=API_KEY)
+if not os.path.exists(SAVE_PATH):
+    os.makedirs(SAVE_PATH)
+
+today = datetime.date.today().isoformat()
+all_results = []
+
+for kw in KEYWORDS:
+    try:
+        sys.stdout.buffer.write(f"\n[抓取] {kw} ...\n".encode('utf-8'))
+        articles = api.get_everything(q=kw,
+                                      language='en',
+                                      from_param=today,
+                                      sort_by='relevancy',
+                                      page_size=10)['articles']
+
+        for art in articles:
+            if art['title'] and art['url']:  # 避免空标题链接
+                all_results.append({
+                    "Keyword": kw,
+                    "Title": art['title'],
+                    "URL": art['url'],
+                    "Description": art.get('description', ''),
+                    "Source": art['source']['name'],
+                    "Published At": art['publishedAt'][:10]
+                })
+    except Exception as e:
+        sys.stdout.buffer.write(f"抓取失败: {str(e)}\n".encode('utf-8'))
+
+# 只有非空时保存为 Excel
+if all_results:
+    filename = f"{SAVE_PATH}/{today}_news.xlsx"
+    pd.DataFrame(all_results).to_excel(filename, index=False)
+    print(f"\n文件已保存：{filename}")
+
+    # TODO: 可选扩展（发送邮件）
+    # if SEND_EMAIL:
+    #     send_email_with_attachment(filename)
+    #     print("\n邮件已发送！")
+else:
+    print("\n今天没有抓到任何相关内容，未生成文件。")
